@@ -1,10 +1,17 @@
-# results_logger.py
+# src/core/results_logger.py
 
 import sqlite3
 from pathlib import Path
 import pandas as pd
+from src.core.backtester import backtest_strategy
+
 
 def log_results(phase1, phase2, metrics, phase1_fitness, phase2_fitness, db_path="results.db"):
+    """
+    Persist Phase 1 & Phase 2 parameters and metrics to SQLite,
+    then run a backtest on the stored OHLCV data for summary.
+    """
+    # Prepare results dictionary for insertion
     results = {
         "phase1_risk_reward": phase1.risk_reward,
         "phase1_trend": phase1.trend,
@@ -23,42 +30,24 @@ def log_results(phase1, phase2, metrics, phase1_fitness, phase2_fitness, db_path
         "phase2_neutral": phase2.neutral,
         "phase2_fitness": phase2_fitness,
 
-        "returns": metrics["returns"],
-        "sharpe": metrics["sharpe"],
-        "volatility": metrics["volatility"],
-        "max_drawdown": metrics["max_drawdown"]
+        "returns": metrics.get("returns"),
+        "sharpe": metrics.get("sharpe"),
+        "volatility": metrics.get("volatility"),
+        "max_drawdown": metrics.get("max_drawdown")
     }
 
+    # Print summary of Phase results
     print("Final Results:")
     for k, v in results.items():
-        print(f"{k}: {v:.4f}")
+        try:
+            print(f"{k}: {float(v):.4f}")
+        except Exception:
+            print(f"{k}: {v}")
 
-    _log_results_to_sqlite(results, db_path)
-
-    # Optional: run backtest and show summary from SQLite
-    try:
-        from src.core.backtester import backtest_strategy
-
-        conn = sqlite3.connect(db_path)
-        query = "SELECT timestamp, open, high, low, close, volume FROM ohlcv_data ORDER BY timestamp"
-        df = pd.read_sql(query, conn, parse_dates=['timestamp'])
-        conn.close()
-
-        if df.empty:
-            print("⚠️ Backtest skipped: no data in ohlcv_data table")
-        else:
-            backtest = backtest_strategy(df, phase2)
-            print("Backtest Results:")
-            for k, v in backtest.items():
-                print(f"{k}: {v:.4f}")
-    except Exception as e:
-        print(f"⚠️ Backtest skipped due to error: {e}")
-
-def _log_results_to_sqlite(results, db_path):
+    # Ensure database and table exist
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS strategy_runs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,20 +75,41 @@ def _log_results_to_sqlite(results, db_path):
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-
+    # Insert results
     cursor.execute('''
         INSERT INTO strategy_runs (
             phase1_risk_reward, phase1_trend, phase1_entry, phase1_confidence, phase1_fitness,
-            phase2_risk_reward, phase2_trend, phase2_entry, phase2_confidence, phase2_bullish,
-            phase2_bearish, phase2_top, phase2_bottom, phase2_neutral, phase2_fitness,
+            phase2_risk_reward, phase2_trend, phase2_entry, phase2_confidence,
+            phase2_bullish, phase2_bearish, phase2_top, phase2_bottom, phase2_neutral, phase2_fitness,
             returns, sharpe, volatility, max_drawdown
         ) VALUES (
             :phase1_risk_reward, :phase1_trend, :phase1_entry, :phase1_confidence, :phase1_fitness,
-            :phase2_risk_reward, :phase2_trend, :phase2_entry, :phase2_confidence, :phase2_bullish,
-            :phase2_bearish, :phase2_top, :phase2_bottom, :phase2_neutral, :phase2_fitness,
+            :phase2_risk_reward, :phase2_trend, :phase2_entry, :phase2_confidence,
+            :phase2_bullish, :phase2_bearish, :phase2_top, :phase2_bottom, :phase2_neutral, :phase2_fitness,
             :returns, :sharpe, :volatility, :max_drawdown
         )
     ''', results)
-
     conn.commit()
-    conn.close()
+
+    # Load OHLCV data for backtest summary
+    try:
+        conn2 = sqlite3.connect(db_path)
+        df_ohlcv = pd.read_sql(
+            "SELECT timestamp, open, high, low, close, volume FROM ohlcv_data ORDER BY timestamp", 
+            conn2, parse_dates=["timestamp"]
+        )
+        conn2.close()
+        if df_ohlcv.empty:
+            print("⚠️ Backtest skipped: no data in 'ohlcv_data' table")
+        else:
+            print("Backtest Results:")
+            bt_metrics = backtest_strategy(df_ohlcv, phase2)
+            for k, v in bt_metrics.items():
+                try:
+                    print(f"{k}: {float(v):.4f}")
+                except Exception:
+                    print(f"{k}: {v}")
+    except Exception as e:
+        print(f"⚠️ Backtest skipped due to error: {e}")
+    finally:
+        conn.close()

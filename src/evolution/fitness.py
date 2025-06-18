@@ -9,27 +9,36 @@ from src.evolution.utils import get_returns
 
 def calculate_fitness(returns: pd.Series, risk_free_rate: float = 0.02 / 252) -> float:
     """
-    Compute a composite fitness score based on Sharpe ratio, drawdown, and volatility.
+    Compute a composite fitness score that balances Sharpe ratio, drawdown, volatility,
+    and absolute return by explicitly rewarding net gains.
     """
     if len(returns) == 0 or returns.isna().all():
         return 0.0
 
+    # Clean and excess returns
     cleaned = returns.replace([np.inf, -np.inf], 0).fillna(0)
     excess_returns = cleaned - risk_free_rate
 
-    sharpe = (np.sqrt(252) * excess_returns.mean() / excess_returns.std()) \
-        if excess_returns.std() > 0 else 0.0
+    # Sharpe calculation
+    sharpe = np.sqrt(252) * excess_returns.mean() / excess_returns.std() if excess_returns.std() > 0 else 0.0
 
+    # Cumulative returns and drawdown
     cumulative = (1 + cleaned).cumprod()
     drawdown = (cumulative.cummax() - cumulative) / cumulative.cummax()
     max_dd = drawdown.max() if len(drawdown) > 0 else 0.0
 
+    # Volatility
     volatility = cleaned.std()
 
+    # Total return (net PnL)
+    total_return = cumulative.iloc[-1] - 1 if len(cumulative) > 0 else 0.0
+
+    # Re-calibrated fitness: explicit reward for net returns
     score = (
-        0.4 * np.tanh(sharpe / 3) +
-        0.3 * (1 - max_dd) +
-        0.3 * (1 - volatility)
+        0.3 * np.tanh(sharpe / 3) +
+        0.2 * (1 - max_dd) +
+        0.2 * (1 - volatility) +
+        0.3 * np.tanh(total_return * 10)
     )
     return max(0.0, round(score, 6))
 
