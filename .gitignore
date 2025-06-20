@@ -4,3 +4,6 @@ pycache/
 venv/
 .env
 logs/
+cache/
+*.bak
+*.backup_*
