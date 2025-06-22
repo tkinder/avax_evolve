@@ -13,3 +13,4 @@ LATEST_AVAX_ALERT.txt
 alert_config.json
 alert_history.json
 .env
+avax_monitor_history.json
