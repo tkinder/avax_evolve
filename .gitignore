@@ -7,3 +7,4 @@ logs/
 cache/
 *.bak
 *.backup_*
+hybrid_avax_data.csv
