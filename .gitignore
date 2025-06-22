@@ -8,3 +8,8 @@ cache/
 *.bak
 *.backup_*
 hybrid_avax_data.csv
+AVAX_ALERTS.txt
+LATEST_AVAX_ALERT.txt
+alert_config.json
+alert_history.json
+.env

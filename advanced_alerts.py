@@ -5,31 +5,42 @@ import os
 import time
 import requests
 from datetime import datetime
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 class AlertSystem:
     """
     Multi-channel alert system for AVAX strategy
+    Compatible with laptop_monitor_with_alerts.py
     """
     
     def __init__(self):
         self.alert_config_file = 'alert_config.json'
         self.alert_history_file = 'alert_history.json'
+        self.config = None
+        self.history = []
         self.load_config()
         self.load_history()
     
     def load_config(self):
-        """Load alert configuration"""
+        """Load alert configuration with error handling"""
         try:
             if os.path.exists(self.alert_config_file):
                 with open(self.alert_config_file, 'r') as f:
-                    self.config = json.load(f)
+                    loaded_config = json.load(f)
+                    # Ensure all required keys exist
+                    self.config = self.create_default_config()
+                    self.config.update(loaded_config)
             else:
                 self.config = self.create_default_config()
                 self.save_config()
-        except:
+        except Exception as e:
+            print(f"Warning: Could not load config ({e}), using defaults")
             self.config = self.create_default_config()
+            try:
+                self.save_config()
+            except:
+                pass
     
     def create_default_config(self):
         """Create default alert configuration"""
@@ -51,7 +62,20 @@ class AlertSystem:
                 'webhook_url': ''
             },
             'desktop': {
-                'enabled': True  # Always available
+                'enabled': True,  # Always available
+                'clear_screen': False,  # Don't clear screen in continuous mode
+                'sound_alerts': True,
+                'require_acknowledgment': False  # Don't block in continuous mode
+            },
+            'console': {  # Alias for desktop for compatibility
+                'enabled': True,
+                'clear_screen': False,
+                'sound_alerts': True,
+                'require_acknowledgment': False
+            },
+            'file': {
+                'enabled': True,
+                'alert_file': 'AVAX_ALERTS.txt'
             },
             'thresholds': {
                 'confidence_above': 0.6,
@@ -60,13 +84,17 @@ class AlertSystem:
                 'buy_signal': True,
                 'regime_change': True
             },
-            'cooldown_minutes': 60  # Don't spam alerts
+            'cooldown_minutes': 60  # 60 minutes for production, 1 for testing
         }
     
     def save_config(self):
         """Save alert configuration"""
-        with open(self.alert_config_file, 'w') as f:
-            json.dump(self.config, f, indent=2)
+        try:
+            with open(self.alert_config_file, 'w') as f:
+                json.dump(self.config, f, indent=2)
+            print(f"✅ Config saved to {self.alert_config_file}")
+        except Exception as e:
+            print(f"Warning: Could not save config: {e}")
     
     def load_history(self):
         """Load alert history to prevent spam"""
@@ -76,41 +104,49 @@ class AlertSystem:
                     self.history = json.load(f)
             else:
                 self.history = []
-        except:
+        except Exception as e:
+            print(f"Warning: Could not load history ({e}), starting fresh")
             self.history = []
     
     def save_history(self, alert_type, message):
         """Save alert to history"""
-        self.history.append({
-            'timestamp': datetime.now().isoformat(),
-            'type': alert_type,
-            'message': message
-        })
-        
-        # Keep only last 100 alerts
-        if len(self.history) > 100:
-            self.history = self.history[-100:]
-        
-        with open(self.alert_history_file, 'w') as f:
-            json.dump(self.history, f, indent=2)
+        try:
+            self.history.append({
+                'timestamp': datetime.now().isoformat(),
+                'type': alert_type,
+                'message': message
+            })
+            
+            # Keep only last 100 alerts
+            if len(self.history) > 100:
+                self.history = self.history[-100:]
+            
+            with open(self.alert_history_file, 'w') as f:
+                json.dump(self.history, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Could not save history: {e}")
     
     def should_send_alert(self, alert_type):
         """Check if we should send alert (cooldown logic)"""
-        if not self.history:
-            return True
-        
-        cooldown_minutes = self.config.get('cooldown_minutes', 60)
-        now = datetime.now()
-        
-        # Check recent alerts of same type
-        for alert in reversed(self.history[-10:]):
-            alert_time = datetime.fromisoformat(alert['timestamp'])
-            minutes_ago = (now - alert_time).total_seconds() / 60
+        try:
+            if not self.history:
+                return True
             
-            if alert['type'] == alert_type and minutes_ago < cooldown_minutes:
-                return False
-        
-        return True
+            cooldown_minutes = self.config.get('cooldown_minutes', 60)
+            now = datetime.now()
+            
+            # Check recent alerts of same type
+            for alert in reversed(self.history[-10:]):
+                alert_time = datetime.fromisoformat(alert['timestamp'])
+                minutes_ago = (now - alert_time).total_seconds() / 60
+                
+                if alert['type'] == alert_type and minutes_ago < cooldown_minutes:
+                    return False
+            
+            return True
+        except Exception as e:
+            print(f"Warning: Cooldown check failed ({e}), allowing alert")
+            return True
     
     def send_desktop_notification(self, title, message):
         """Send desktop notification (cross-platform)"""
@@ -121,15 +157,120 @@ class AlertSystem:
             if system == "Darwin":  # macOS
                 os.system(f'''osascript -e 'display notification "{message}" with title "{title}"' ''')
             elif system == "Linux":
-                os.system(f'notify-send "{title}" "{message}"')
+                # Try multiple notification methods
+                try:
+                    os.system(f'notify-send "{title}" "{message}"')
+                except:
+                    try:
+                        os.system(f'zenity --notification --text="{title}: {message}"')
+                    except:
+                        pass
             elif system == "Windows":
-                import win10toast
-                toaster = win10toast.ToastNotifier()
-                toaster.show_toast(title, message, duration=10)
+                try:
+                    import win10toast
+                    toaster = win10toast.ToastNotifier()
+                    toaster.show_toast(title, message, duration=10)
+                except ImportError:
+                    print(f"💡 Install win10toast for Windows notifications: pip install win10toast")
             
             return True
         except Exception as e:
             print(f"Desktop notification failed: {e}")
+            return False
+    
+    def send_console_alert(self, title, message, alert_type="info"):
+        """Send enhanced console alert - for compatibility with monitor"""
+        try:
+            console_config = self.config.get('console', self.config.get('desktop', {}))
+            if not console_config.get('enabled', True):
+                return False
+            
+            # Color codes for visual impact
+            colors = {
+                "buy_signal": "\033[1;92m",  # Bold bright green
+                "warning": "\033[1;93m",     # Bold yellow
+                "info": "\033[1;94m",        # Bold blue
+                "error": "\033[1;91m",       # Bold red
+                "test": "\033[1;96m",        # Bold cyan
+                "reset": "\033[0m"
+            }
+            
+            color = colors.get(alert_type, colors["info"])
+            reset = colors["reset"]
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            print(f"\n{color}")
+            print("🚨" * 30)
+            print(f"⚠️  AVAX TRADING ALERT: {title}")
+            print(f"📅 {timestamp}")
+            print("═" * 60)
+            print(message)
+            print("═" * 60)
+            
+            if alert_type == "buy_signal":
+                print("🚨 🚨 BUY SIGNAL DETECTED! 🚨 🚨")
+                print("💰 CHECK YOUR TRADING PLATFORM IMMEDIATELY!")
+                
+                # Sound alert
+                if console_config.get('sound_alerts', True):
+                    self.make_sound_alert()
+                
+                # Optional acknowledgment (disabled for continuous monitoring)
+                if console_config.get('require_acknowledgment', False):
+                    print("\n🔔 Press Enter to acknowledge this alert...")
+                    input()
+            
+            print("🚨" * 30)
+            print(f"{reset}\n")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Console alert failed: {e}")
+            return False
+    
+    def make_sound_alert(self):
+        """Make audible alert"""
+        try:
+            for i in range(3):  # Reduced for continuous monitoring
+                print("\a", end="", flush=True)
+                time.sleep(0.2)
+        except:
+            pass
+    
+    def send_file_alert(self, title, message):
+        """Write alert to file for persistent notification"""
+        try:
+            file_config = self.config.get('file', {})
+            if not file_config.get('enabled', True):
+                return False
+            
+            alert_file = file_config.get('alert_file', 'AVAX_ALERTS.txt')
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            alert_content = f"""
+╔══════════════════════════════════════════════════════════════╗
+║                        AVAX TRADING ALERT                    ║
+╠══════════════════════════════════════════════════════════════╣
+║ Alert: {title:<50} ║
+║ Time:  {timestamp:<50} ║
+╠══════════════════════════════════════════════════════════════╣
+║ {message:<60} ║
+╚══════════════════════════════════════════════════════════════╝
+
+"""
+            
+            with open(alert_file, 'a') as f:
+                f.write(alert_content)
+            
+            with open('LATEST_AVAX_ALERT.txt', 'w') as f:
+                f.write(f"{timestamp}: {title}\n{message}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"File alert failed: {e}")
             return False
     
     def send_email_alert(self, subject, message):
@@ -147,12 +288,12 @@ class AlertSystem:
                 return False
             
             # Create message
-            msg = MimeMultipart()
+            msg = MIMEMultipart()
             msg['From'] = sender
             msg['To'] = recipient
             msg['Subject'] = subject
             
-            msg.attach(MimeText(message, 'plain'))
+            msg.attach(MIMEText(message, 'plain'))
             
             # Send email
             server = smtplib.SMTP(self.config['email']['smtp_server'], 
@@ -216,85 +357,116 @@ class AlertSystem:
     
     def send_alert(self, alert_type, title, message):
         """Send alert through all enabled channels"""
-        if not self.should_send_alert(alert_type):
-            print(f"⏰ Skipping {alert_type} alert (cooldown)")
-            return
-        
-        print(f"🔔 ALERT: {title}")
-        print(f"   {message}")
-        
-        sent_count = 0
-        
-        # Desktop notification
-        if self.config['desktop']['enabled']:
-            if self.send_desktop_notification(title, message):
+        try:
+            if not self.should_send_alert(alert_type):
+                print(f"⏰ Skipping {alert_type} alert (cooldown)")
+                return
+            
+            sent_count = 0
+            
+            # Console alert (enhanced version for buy signals)
+            if self.send_console_alert(title, message, alert_type):
                 sent_count += 1
-        
-        # Email
-        if self.config['email']['enabled']:
-            if self.send_email_alert(f"AVAX Strategy: {title}", message):
+            
+            # Desktop notification (additional to console)
+            if self.config['desktop']['enabled']:
+                if self.send_desktop_notification(title, message):
+                    pass  # Don't count twice
+            
+            # File alert
+            if self.send_file_alert(title, message):
                 sent_count += 1
-                print("   ✅ Email sent")
+            
+            # Email
+            if self.config['email']['enabled']:
+                if self.send_email_alert(f"AVAX Strategy: {title}", message):
+                    sent_count += 1
+                    print("   ✅ Email sent")
+            
+            # Discord
+            if self.config['discord']['enabled']:
+                discord_msg = f"🚨 **{title}**\n{message}"
+                if self.send_discord_alert(discord_msg):
+                    sent_count += 1
+                    print("   ✅ Discord sent")
+            
+            # Slack
+            if self.config['slack']['enabled']:
+                slack_msg = f"🚨 *{title}*\n{message}"
+                if self.send_slack_alert(slack_msg):
+                    sent_count += 1
+                    print("   ✅ Slack sent")
+            
+            # Save to history
+            self.save_history(alert_type, f"{title}: {message}")
+            
+            print(f"   📊 Alert sent via {sent_count} method(s)")
+            
+            return sent_count > 0
         
-        # Discord
-        if self.config['discord']['enabled']:
-            discord_msg = f"🚨 **{title}**\n{message}"
-            if self.send_discord_alert(discord_msg):
-                sent_count += 1
-                print("   ✅ Discord sent")
-        
-        # Slack
-        if self.config['slack']['enabled']:
-            slack_msg = f"🚨 *{title}*\n{message}"
-            if self.send_slack_alert(slack_msg):
-                sent_count += 1
-                print("   ✅ Slack sent")
-        
-        # Save to history
-        self.save_history(alert_type, f"{title}: {message}")
-        
-        print(f"   📊 Sent via {sent_count} channel(s)")
+        except Exception as e:
+            print(f"Send alert failed: {e}")
+            return False
     
     def check_alerts(self, analysis):
-        """Check if any alerts should be triggered"""
-        if not analysis:
-            return
+        """Check if any alerts should be triggered - compatible with monitor"""
+        try:
+            if not analysis:
+                return
+            
+            regime = analysis['regime']
+            price = analysis['price']
+            confidence = regime.confidence
+            thresholds = self.config.get('thresholds', {})
+            
+            # Buy signal alert (highest priority)
+            if analysis['should_enter'] and thresholds.get('buy_signal', True):
+                message = f"""
+🚨 BUY SIGNAL ACTIVE! 🚨
+
+💰 Current Price: ${price:.2f}
+📈 Buy Level: ${analysis['buy_level']:.2f}
+🎯 Target Price: ${analysis['sell_level']:.2f}
+📊 Potential Gain: {((analysis['sell_level'] - price) / price * 100):.1f}%
+
+🧠 Market Regime: {regime.trend.value}/{regime.volatility.value}/{regime.momentum.value}
+🎯 Confidence: {confidence:.3f}
+
+⚡ ACTION REQUIRED:
+1. Check your trading platform
+2. Execute trade if conditions still valid
+3. Monitor position according to strategy rules
+                """
+                self.send_alert('buy_signal', 'AVAX BUY SIGNAL', message)
+            
+            # Confidence threshold
+            elif confidence >= thresholds.get('confidence_above', 0.6):
+                message = f"Confidence reached {confidence:.3f}\nPrice: ${price:.2f}\nRegime: {regime.trend.value}/{regime.volatility.value}"
+                self.send_alert('confidence', 'High Confidence Detected', message)
+            
+            # Price alerts
+            elif price <= thresholds.get('price_below', 0):
+                message = f"Price dropped to ${price:.2f}\nBelow threshold: ${thresholds['price_below']:.2f}"
+                self.send_alert('price_low', 'Price Alert - Low', message)
+            
+            elif price >= thresholds.get('price_above', 999):
+                message = f"Price rose to ${price:.2f}\nAbove threshold: ${thresholds['price_above']:.2f}"
+                self.send_alert('price_high', 'Price Alert - High', message)
+            
+            # Regime change detection
+            if thresholds.get('regime_change', True):
+                # Check if regime improved from last check
+                if len(self.history) > 0:
+                    last_alert = self.history[-1]
+                    if 'strong_bear' in last_alert.get('message', '') and regime.trend.value != 'strong_bear':
+                        message = f"Regime improved!\nNew: {regime.trend.value}/{regime.volatility.value}\nConfidence: {confidence:.3f}"
+                        self.send_alert('regime_change', 'Market Regime Improved', message)
         
-        regime = analysis['regime']
-        price = analysis['price']
-        confidence = regime.confidence
-        thresholds = self.config['thresholds']
-        
-        # Buy signal alert
-        if analysis['should_enter'] and thresholds.get('buy_signal', True):
-            message = f"BUY SIGNAL ACTIVE!\nPrice: ${price:.2f}\nBuy Level: ${analysis['buy_level']:.2f}\nTarget: ${analysis['sell_level']:.2f}"
-            self.send_alert('buy_signal', 'AVAX BUY SIGNAL', message)
-        
-        # Confidence threshold
-        if confidence >= thresholds.get('confidence_above', 0.6):
-            message = f"Confidence reached {confidence:.3f}\nPrice: ${price:.2f}\nRegime: {regime.trend.value}/{regime.volatility.value}"
-            self.send_alert('confidence', 'High Confidence Detected', message)
-        
-        # Price alerts
-        if price <= thresholds.get('price_below', 0):
-            message = f"Price dropped to ${price:.2f}\nBelow threshold: ${thresholds['price_below']:.2f}"
-            self.send_alert('price_low', 'Price Alert - Low', message)
-        
-        if price >= thresholds.get('price_above', 999):
-            message = f"Price rose to ${price:.2f}\nAbove threshold: ${thresholds['price_above']:.2f}"
-            self.send_alert('price_high', 'Price Alert - High', message)
-        
-        # Regime change detection
-        if thresholds.get('regime_change', True):
-            # Check if regime improved from last check
-            if len(self.history) > 0:
-                last_alert = self.history[-1]
-                if 'strong_bear' in last_alert.get('message', '') and regime.trend.value != 'strong_bear':
-                    message = f"Regime improved!\nNew: {regime.trend.value}/{regime.volatility.value}\nConfidence: {confidence:.3f}"
-                    self.send_alert('regime_change', 'Market Regime Improved', message)
+        except Exception as e:
+            print(f"Check alerts failed: {e}")
 
 def setup_alerts():
-    """Interactive alert setup"""
+    """Interactive alert setup - compatible with monitor"""
     print("🔔 ALERT SYSTEM SETUP")
     print("=" * 30)
     
@@ -302,7 +474,7 @@ def setup_alerts():
     config = alert_system.config
     
     # Desktop notifications (always enabled)
-    print("✅ Desktop notifications: Enabled")
+    print("✅ Console/Desktop notifications: Enabled")
     
     # Email setup
     print("\n📧 EMAIL ALERTS:")
@@ -370,7 +542,7 @@ def setup_alerts():
     alert_system.save_config()
     
     print("\n🎉 ALERT SYSTEM CONFIGURED!")
-    print("✅ Desktop notifications: Always enabled")
+    print("✅ Console/Desktop notifications: Always enabled")
     print(f"✅ Email alerts: {'Enabled' if config['email']['enabled'] else 'Disabled'}")
     print(f"✅ Discord alerts: {'Enabled' if config['discord']['enabled'] else 'Disabled'}")
     print(f"✅ Slack alerts: {'Enabled' if config['slack']['enabled'] else 'Disabled'}")
