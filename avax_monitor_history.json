@@ -1,0 +1,13 @@
+[
+  {
+    "timestamp": "2025-06-21T13:40:48.385808",
+    "price": 16.98,
+    "trend": "strong_bear",
+    "volatility": "normal",
+    "momentum": "accel_down",
+    "confidence": 0.5322352318652293,
+    "should_enter": false,
+    "buy_level": 18.42598619313751,
+    "sell_level": 23.147755922580366
+  }
+]
