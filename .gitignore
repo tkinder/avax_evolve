@@ -14,3 +14,4 @@ alert_config.json
 alert_history.json
 .env
 avax_monitor_history.json
+*.log

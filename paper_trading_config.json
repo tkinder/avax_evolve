@@ -1,0 +1,23 @@
+{
+    "binance": {
+        "testnet_api_key": "YOUR_TESTNET_API_KEY",
+        "testnet_api_secret": "YOUR_TESTNET_API_SECRET"
+    },
+    "trading": {
+        "symbol": "AVAXUSDT",
+        "initial_balance": 10000.0,
+        "max_position_pct": 0.95,
+        "min_confidence": 0.6,
+        "stop_loss_pct": 0.082,
+        "take_profit_pct": 0.15
+    },
+    "risk_management": {
+        "max_daily_loss": 0.05,
+        "max_drawdown": 0.1,
+        "min_order_size": 10.0
+    },
+    "alerts": {
+        "email_on_trade": true,
+        "email_on_signal": true
+    }
+}
