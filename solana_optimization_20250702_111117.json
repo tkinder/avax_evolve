@@ -1,0 +1,27 @@
+{
+  "optimization_name": "solana_deap_v1",
+  "fitness": 0.492943,
+  "optimization_time": 72.86251473426819,
+  "data_period": "2025-03-06 to 2025-07-02",
+  "parameters": {
+    "buy_threshold_pct": 0.5608891594094427,
+    "sell_threshold_pct": 0.7453980251610351,
+    "stop_loss_pct": 0.37604185228412235,
+    "take_profit_pct": 0.12043036452174494,
+    "max_position_pct": 0.5906867251269174,
+    "regime_short_window": 10,
+    "regime_medium_window": 30,
+    "regime_long_window": 60,
+    "bull_multiplier": 1.1399056243375274,
+    "bear_multiplier": 0.6954569901148114,
+    "high_vol_multiplier": 0.8206724030037806,
+    "low_vol_multiplier": 1.107979413746886
+  },
+  "results": {
+    "returns": 0.035343587785980346,
+    "trades": 2,
+    "wins": 1,
+    "losses": 1,
+    "max_drawdown": 0.02245035187384299
+  }
+}

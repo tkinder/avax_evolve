@@ -1,0 +1,18 @@
+{
+  "start_date": "2025-07-02T09:59:48.835563",
+  "completed_liquidations": [
+    {
+      "timestamp": "2025-07-02T10:01:12.692034",
+      "asset": "USDC",
+      "symbol": "USDCUSDT",
+      "quantity_sold": 9900.0,
+      "fill_price": 0.9996,
+      "usdt_received": 9895.8369,
+      "balance_increase": 9895.836899999998,
+      "order_id": 3908
+    }
+  ],
+  "total_usdt_gained": 9895.836899999998,
+  "current_day": 0,
+  "status": "READY"
+}

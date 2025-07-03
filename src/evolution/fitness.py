@@ -5,9 +5,9 @@ import pandas as pd
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Callable, Tuple, List
 import warnings
-from core.performance import get_performance_metrics
-from core.params import Phase2Params
-from evolution.utils import get_returns
+from src.core.performance import get_performance_metrics
+from src.core.params import Phase2Params
+from src.evolution.utils import get_returns
 
 # DEAP imports for advanced evolutionary algorithms
 try:

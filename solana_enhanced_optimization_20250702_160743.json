@@ -1,0 +1,35 @@
+{
+  "optimization_name": "solana_enhanced_v1",
+  "validation_method": "enhanced_backtest",
+  "fitness": 0.520315,
+  "optimization_time": 50.11654210090637,
+  "data_period": "2025-03-06 to 2025-07-02",
+  "parameters": {
+    "buy_threshold_pct": 0.31904977866786943,
+    "sell_threshold_pct": 0.5986945842912439,
+    "stop_loss_pct": 0.20755762647419002,
+    "take_profit_pct": 0.25029280931089226,
+    "max_position_pct": 0.02174957123995233,
+    "regime_short_window": 10,
+    "regime_medium_window": 30,
+    "regime_long_window": 60,
+    "bull_multiplier": 0.8223261850898693,
+    "bear_multiplier": -0.023103295557226927,
+    "high_vol_multiplier": 0.9378561603693929,
+    "low_vol_multiplier": 0.9799890004914513
+  },
+  "results": {
+    "returns": 0.000891907112280569,
+    "trades": 2,
+    "wins": 2,
+    "losses": 0,
+    "win_rate": 1.0,
+    "max_drawdown": 0.0014642609238635024,
+    "fitness_components": {
+      "profitability": 0.0017838123325353093,
+      "risk_adjusted": 0.6842635402966935,
+      "drawdown": 0.9941430232788452,
+      "trade_quality": 1.0
+    }
+  }
+}

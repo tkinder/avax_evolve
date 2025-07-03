@@ -1,0 +1,12 @@
+{
+    "liquidation": {
+        "daily_limit_usd": 15000,
+        "min_amount_threshold": 1.0,
+        "safety_buffer_pct": 0.01,
+        "dry_run": false
+    },
+    "logging": {
+        "log_file": "stablecoin_liquidation.log",
+        "detailed_logging": true
+    }
+}
